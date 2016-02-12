@@ -45,24 +45,20 @@ var log = console.log;
 
         // Custom events
 
-        options.affects.forEach( function ( affected ) {
-            events.on( 'update:complete', function () { affect( affected ) } );
-            events.on( 'end:complete', function () { affect( affected ) } );
-            events.on( 'initialize:complete', function () { affect( affected ) } );
-        } );
-
         events.on( 'middle:complete', function () {
-            update();
+            updateDOM();
         } );
 
         events.on( 'initialize:complete', function () {
-            console.log( model );
         } );
 
         // Browser events
 
         el( document ).on( 'DOMContentLoaded', function ( event ) {
+            console.log( 'DOMContentLoaded' );
+
             setModel( 'middle', event );
+
             events.emit( 'initialize:complete' );
         } );
 
@@ -79,6 +75,7 @@ var log = console.log;
             el( window ).on( 'mouseleave', end );
 
             events.emit( 'start:complete' );
+            events.emit( 'start:move' );
         }
 
         function middle( event ) {
@@ -86,6 +83,7 @@ var log = console.log;
                 setModel( 'middle', event );
 
             events.emit( 'middle:complete' );
+            events.emit( 'move' );
         }
 
         function end( event ) {
@@ -96,6 +94,7 @@ var log = console.log;
             el( window ).off( 'mouseleave', end );
 
             events.emit( 'end:complete' );
+            events.emit( 'end:move' );
         }
 
         // Implementation
@@ -104,18 +103,18 @@ var log = console.log;
         var calculate = {
             top: function () {
 
-                if ( options.y.preserveCondition && options.y.preserveCondition() ) {
+                if ( options.y.preserveCondition && options.y.preserveCondition( value ) ) {
                     return options.y.preserveCondition.previous;
-                }
-
-                if ( options.y.fromX ) {
-                    return options.y.fromX( this.left() );
                 }
 
                 var value = (
                     ( this.px.top() - this.px.inner.top() )
                     / model.middle.container.height
                 ) * 100;
+
+                if ( options.y.fromX ) {
+                    value = options.y.fromX( this.left() );
+                }
 
                 if ( value < options.y.smallest() ) value = options.y.smallest();
                 if ( value > options.y.largest() ) value = options.y.largest();
@@ -126,22 +125,25 @@ var log = console.log;
                 if ( options.y.preserveCondition )
                     options.y.preserveCondition.previous = value;
 
+                if ( options.y.callback )
+                    value = options.y.callback( value );
+
                 return value;
             },
             left: function () {
 
-                if ( options.x.preserveCondition && options.x.preserveCondition() ) {
+                if ( options.x.preserveCondition && options.x.preserveCondition( value ) ) {
                     return options.x.preserveCondition.previous;
-                }
-
-                if ( options.x.fromY ) {
-                    return options.x.fromY( this.top() );
                 }
 
                 var value = (
                     ( this.px.left() - this.px.inner.left() )
                     / el( container ).width()
                 ) * 100;
+
+                if ( options.x.fromY ) {
+                    value = options.x.fromY( this.top() );
+                }
 
                 if ( value < options.x.smallest() ) value = options.x.smallest();
                 if ( value > options.x.largest() ) value = options.x.largest();
@@ -151,6 +153,9 @@ var log = console.log;
 
                 if ( options.x.preserveCondition )
                     options.x.preserveCondition.previous = value;
+
+                if ( options.x.callback )
+                    value = options.x.callback( value );
 
                 return value;
             },
@@ -185,67 +190,21 @@ var log = console.log;
             model[ when ].container.width = el( container ).width();
         }
 
-        function update() {
+        function updateDOM() {
 
             el( element ).css( 'top', calculate.top() + '%' );
             el( element ).css( 'left', calculate.left() + '%' );
 
-            events.emit( 'update:complete' );
-        }
-
-        function affect( affected ) {
-            if ( affected.x ) {
-                if ( affected.x ) {
-                    for ( var key in affected.x ) {
-                        if ( ! affected.x.hasOwnProperty( key ) )
-                            continue;
-
-                        var result = 0;
-                        var addProperties = affected.x[ key ].add || [];
-                        var subtractProperties = affected.x[ key ].subtract || [];
-
-                        addProperties.forEach( function ( property ) {
-                            result += parseExpression( model, property );
-                        } );
-
-                        subtractProperties.forEach( function ( property ) {
-                            result -= parseExpression( model, property );
-                        } );
-
-                        result = result / model.middle.container.width * 100;
-
-                        el( affected.element ).css( key, result + '%' );
-                    }
-                }
-                if ( affected.y ) {
-                    for ( var key in affected.y ) {
-                        if ( ! affected.y.hasOwnProperty( key ) )
-                            continue;
-
-                        var result = 0;
-                        var addProperties = affected.y[ key ].add || [];
-                        var subtractProperties = affected.y[ key ].subtract || [];
-
-                        addProperties.forEach( function ( property ) {
-                            result += parseExpression( model, property );
-                        } );
-
-                        subtractProperties.forEach( function ( property ) {
-                            result -= parseExpression( model, property );
-                        } );
-
-                        result = result / model.middle.container.height * 100;
-
-                        el( affected.element ).css( key, result + '%' );
-                    }
-                }
-            }
+            events.emit( 'updateDOM:complete' );
         }
 
         // Return values
         // -------------
 
-        return calculate;
+        return {
+            on: events.on,
+            calculate: calculate,
+        }
     }
 
 } )();
